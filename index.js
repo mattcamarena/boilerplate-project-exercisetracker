@@ -27,43 +27,94 @@ const userSchema = new mongoose.Schema({
   },
   count: Number,
   log:[{
-    
-      description: [String],
+      date: String,
       duration: Number,
-      date: Date,
-    
+      description: String
   }]
 })
 
 const User = mongoose.model("User", userSchema);
 
+// User creation returns username and id as a json
 app.post('/api/users', (req,res) =>{
   var username = req.body.username;
-  var newUser = new User({username: username})
+  var newUser = new User({username: username, count: 0})
   newUser.save();
-  var userId = newUser._id.toString();
+
+  var userId = newUser.id;
   res.json({username: username, "_id": userId});
-  // body users create new user
-  // return _id from username
-
-
 });
+
+// Return a list of users with id but no Log or log count
 app.get('/api/users', (req,res) => {
-  // return list of all users array so user + id as json i assume
+  User.find({}).select({log: 0, count: 0}).exec().then(users => {
+    res.json(users);
+  }).catch(err =>{
+    console.log(err);
+  });                         
+});
+
+// Create exercise that will return a json of said object
+app.post('/api/users/:_id/exercises', (req,res) =>{
+
+  var id = req.params._id;
+  var description = req.body.description;
+  var duration = parseInt(req.body.duration);
+  var date = req.body.date;
+  console.log("date")
+  console.log(date);
+  if(date === undefined){
+    date = new Date();
+  }else{
+    date = new Date(date);
+  }
   
+  date = date.toDateString();
+  console.log(date);
+  var username = "";
+
+ //fix date
+
+  User.findById(id).exec().then(userById => {
+    username = userById.username;
+    var newLog = {description: description, duration: duration, date: date}
+    userById.log.push(newLog);
+    userById.count++;
+    res.json({_id: id, username: username, date: date, duration: duration, description: description})
+    userById.save();
+  }).catch(err =>{
+    console.log(err);
+  });
+
 });
 
-app.post('api/users/:id/exercises', (req,res) =>{
-  // data descr, duration date if no date use current
-  // return json of obje with fields
-});
-
-app.get('api/users/:id/logs', (req,res) =>{
+app.get('/api/users/:id/logs', (req,res) =>{
   //return user obj with count prop  of exerc + logs
+  var from = new Date(req.query.from);
+  var to = new Date(req.query.to);
+  var limit = req.query.limit || 50;
+  console.log(from);
+  console.log(to);
+  var id = req.params.id;
+  var resLog = [];
+  var resCount = 0;
 
+  User.findById(id).exec().then(userById =>{
+    for(var x of userById.log) {
+      console.log(x.date)
+      var xDate = new Date(x.date);
+      if(limit < 1) break;
+      if(from == "Invalid Date" || from <= xDate && to >= xDate){
+        resLog.push(x);
+        resCount++;
+        limit--;
+      }
+    }
+    res.json({_id: id, username: userById.username, count: resCount, log: resLog});
+  })
 
-  // from to limit parameters to a get 
 })
+
 
 
 const listener = app.listen(process.env.PORT || 3000, () => {
